@@ -18,28 +18,29 @@ contextDay = pd.DataFrame(pd.read_csv('./context_day.csv'))
 
 
 def sim(usrIndexA,usrIndexB):
-    ratings = movieRating.iloc[[usrIndexA,usrIndexB],range(1,len(movieRating.columns))]
-    badColumns = ratings[ratings == -1].dropna(axis=1, how='all').columns
-    moviesWithRating = ratings.drop(axis=1, columns=badColumns)
+    trgtsRatings = movieRating.iloc[[usrIndexA,usrIndexB],range(1,len(movieRating.columns))]
+    commonRatings = trgtsRatings[trgtsRatings != -1].dropna(axis=1)
 
+    usrA = commonRatings.iloc[0,:]
+    usrB = commonRatings.iloc[1,:]
 
-    a = moviesWithRating.iloc[0,:].apply(lambda x: x*x).sum()
-    b = moviesWithRating.iloc[1,:].apply(lambda x: x*x).sum()
+    sumUsrA = usrA.apply(lambda x: x*x)
+    sumUsrB = usrB.apply(lambda x: x*x)
+
+    sumUsrA = math.sqrt(sumUsrA.sum())
+    sumUsrB = math.sqrt(sumUsrB.sum())
     
-    a = math.sqrt(a)
-    b = math.sqrt(b)
-    
-    sumAB = (moviesWithRating.iloc[0,:] * moviesWithRating.iloc[1,:]).sum()
-    res = sumAB/(a*b)
+
+    res = (usrA*usrB).sum()/(sumUsrA*sumUsrB)
     return res
 
 
-# In[12]:
+# In[3]:
 
 
 def getMean(userID):
     temp = movieRating.iloc[[userID],range(1,len(movieRating.columns))]
-    res = temp.mean(axis=1)
+    res = temp[temp != -1].dropna(axis=1).mean(axis=1)
     return res.values[0]
 
 
@@ -54,70 +55,93 @@ def getFilmRating(userID,filmID):
 # In[5]:
 
 
-def getSumSim(userID):
-    res=0;
-    for i in range(0,len(movieRating.count()+1)):
-        res = res + abs(sim(userID,i))
-    return res;
+def getSimMatrix():
+    res = pd.DataFrame(np.zeros(shape=(movieRating.count()[0],movieRating.count()[0])),columns=range(0,movieRating.count()[0]))
+    for usrA in range(0,movieRating.count()[0]):
+        for usrB in range(0,movieRating.count()[0]):
+            if(usrA != usrB):
+                res.iat[usrA,usrB] = sim(usrA,usrB)
+    return res
 
 
 # In[6]:
 
 
-def getSmthng(userID,filmID):
-    res=0;
-    for i in range(0,len(movieRating.count()+1)):
-        rvi = getFilmRating(i,filmID)
-        
-        
-        usersSim = sim(userID,i)
-        
-        rv = getMean(i);
-        
-        res = res + usersSim*(rvi-rv)
-        
-    return res
+simMatrix = getSimMatrix()
 
 
 # In[7]:
 
 
+simMatrix
+
+
+# In[12]:
+
+
 def getEval(userID,filmID):
-    sumSum = getSumSim(userID);
-    smthng = getSmthng(userID,filmID)
-    return getMean(userID)+(smthng/sumSum)
+    usersK = simMatrix.iloc[userID,:].sort_values(ascending=False)
+    
+    badColumns = []
+    for trgtId in range(0,movieRating.count()[0]):
+        if(getFilmRating(trgtId,filmID) == -1 and trgtId!= userID):
+            badColumns.append(trgtId)
+    usersK = usersK.drop(badColumns)
+    
+    print(badColumns)
+    
+    usersK = usersK[:4]
+    sumSim = usersK.abs().sum()
+    usersSim = usersK.to_dict();
+    
 
-
-# In[8]:
-
-
-getEval(27,0)
-
-
-# In[13]:
-
-
-res = {}
-for i in range(0,len(movieRating.columns)-1):
-    rvi = getFilmRating(22,i)
-    if(rvi == -1):
-        res[i+1] = getEval(22,i);
-print(res)
-
-
-# In[10]:
-
-
-movieRating.iloc[[22],range(1,len(movieRating.columns))][movieRating == -1].dropna(axis=1)
+    
+    res = 0
+    for userrfID, sim in usersSim.items():
+        rvi = getFilmRating(userID,filmID)
+        if(rvi != -1):
+            rv = getMean(userID);
+            res = res + sim*(rvi-rv)
+    
+    return getMean(userID)+(res/sumSim)
 
 
 # In[11]:
 
 
-target = movieRating.iloc[[22],range(1,len(movieRating.columns))][movieRating == -1]
-for i in range(0,len(target)-1):
-    rvi = getFilmRating(22,i)
-    if(rvi):
-        res.append(getEval(22,i))
-print(res)
+getEval(22,6)
+
+
+# In[18]:
+
+
+userID = 22
+filmID = 6
+
+usersK = simMatrix.iloc[userID,:].sort_values(ascending=False)
+
+print(usersK)
+
+badColumns = []
+for trgtId in range(0,movieRating.count()[0]):
+    if(getFilmRating(trgtId,filmID) == -1 and trgtId!= userID):
+        badColumns.append(trgtId)
+usersK = usersK.drop(badColumns)
+    
+print(badColumns)
+    
+usersK = usersK[:4]
+sumSim = usersK.abs().sum()
+usersSim = usersK.to_dict();
+print(usersK)    
+
+    
+res = 0
+for userrfID, sim in usersSim.items():
+    rvi = getFilmRating(userID,filmID)
+    if(rvi != -1):
+        rv = getMean(userID);
+        res = res + sim*(rvi-rv)
+
+getMean(userID)+(res/sumSim)
 
